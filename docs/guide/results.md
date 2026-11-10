@@ -26,13 +26,13 @@ the run.
 | `alignrates` | `filteredReads/<SP>Reads.pdf` | reads per sample; host and symbiont alignment rates |
 | `symbionts` | `bams/<SP>Symbionts.pdf` | share of symbiont reads per genus, per sample |
 | `structure` | `pcangsd/<SP>Pca.pdf` | PCA, PC1–2 and PC3–4, % variance on the axes |
-| `admix` | `ngsAdmix/<SP>Admix.pdf` | admixture bars for K = 2…`MAXK`, one sample order, cluster colours matched across K; evalAdmix fit and likelihood against K |
-| `kin` | `relatedness/<SP>Kin.pdf` | pairwise kinship, the `KIN` cut marked |
+| `admix` | `ngsAdmix/<SP>Admix.pdf` | the clone-free tree with sampling-group tiles and admixture bars for K = 2…`MAXK` (and PCAngsd's K) in the tree's leaf order; the same bars ordered by sampling group; evalAdmix fit, likelihood and k-means BIC against K |
+| `kin` | `relatedness/<SP>Kin.pdf` | kinship by pair type (within each lineage, between lineages, with Admixed): histograms, boxplots of every pair and of each sample's closest relative, the share of pairs at or above each kinship, and counts per degree class; `KIN` and the KING degree bounds marked |
 | `outliers` | `angsd/lineages/<SP>Outliers.pdf` | selection statistic along the genome per lineage, outliers in red; within-lineage PCAs |
-| `neutral` | `ngsAdmix/<SP>Neutral.pdf` | neutral, kin-free bars beside the full run's at K; neutral PCA coloured by lineage |
+| `neutral` | `ngsAdmix/<SP>Neutral.pdf`, `ngsAdmix/<SP>NeutralAdmix.pdf`, `pcangsd/<SP>PcaCompare.pdf` | neutral, kin-free bars beside the full run's at K; the kin-free admixture for every K; the PCA of all samples and the neutral, kin-free PCA, each coloured by sampling group and by lineage |
 | `fst`, `fstall`, `groups` | `sfs/<SP>Fst.pdf` | F<sub>ST</sub> heatmaps on one colour scale: between lineages (neutral and all sites), between groups within lineages |
 | `het` | `het/<SP>Het.pdf` | heterozygosity per sample by lineage and by group; against coverage |
-| `theta` | `theta/<SP>Theta.pdf` | π, θ<sub>W</sub> and Tajima's D per lineage (and the `THETA_N` subsample) |
+| `theta` | `theta/<SP>Theta.pdf` | π, θ<sub>W</sub> and Tajima's D per lineage (and the `THETA_N` subsample), and per sampling group |
 | reads pipeline | `rawReads/RawCounts.pdf` | raw and kept reads per pool |
 
 The clone dendrograms (`angsd/clones/<SP>CloneDend.pdf`, and `angsd/<SP>CloneFreeDend.pdf` from
@@ -79,16 +79,23 @@ stops on a factor that is not a metadata column and warns about levels it cannot
 
 ## Diversity
 
-**Heterozygosity** is estimated per sample, on the SFS sites with at least 10 reads in that
-sample (`het/<SP>.het`; means per lineage in `<SP>Ho.txt`). A sample with less coverage
-reaches 10 reads at fewer, and different, sites, so `het` also tests whether heterozygosity
-follows coverage: Spearman's ρ against the number of sites and against the proportion of
-sites at `QDEPTH`x, with a permutation p (`het/<SP>HetDepth.txt`). A p below 0.05 is a
-WARNING. If you see it, compare groups with coverage as a covariate, or downsample the bams to
-one depth and rerun `het`.
+**Heterozygosity** is estimated per sample, variant and invariant sites together (`het/<SP>.het`;
+means per lineage in `<SP>Ho.txt`): each sample on the SFS sites where it has at least 10 reads
+(the `[het]` `-setMinDepthInd`), as in Matz's 2bRAD scripts. `het` then tests whether
+heterozygosity follows coverage: Spearman's ρ with a permutation p, and the R² of a straight-line
+fit, against the number of sites and the proportion of sites at `QDEPTH`x
+(`het/<SP>HetDepth.txt`, the diary and the plot). A p below 0.05 is a WARNING: a sample with less
+coverage reaches 10 reads at fewer, and different, sites. Then set `HET_DEPTH`: every sample's
+reads are thinned at random (fixed seed) to that mean depth over the SFS sites before scoring, so
+all samples are scored at one depth, and samples below it are left out (`angsd/<SP>HetExcluded`;
+mean depths in `het/<SP>HetMeanDepth.txt`). Pick the highest depth that keeps most samples, with a
+floor of about 5 (`-setMinDepthInd 5` in `[het]` args), and rerun `het`. Heterozygosity from 2bRAD
+reads is lower than the truth (allele dropout, low depth and the mapping-quality filter all hide
+heterozygotes), so compare samples and groups, not absolute values across studies.
 
 **θ.** `theta/<SP>Theta.out` gives π, Watterson's θ, Tajima's D and the number of sites per
-lineage, from all its pure, kin-free samples (`n`). π compares well between lineages of
+lineage, from all its pure, kin-free samples (`n`), all lineages on the same sites (those in
+every lineage's SAF, `theta/<SP>ThetaSites`). π compares well between lineages of
 different size; θ<sub>W</sub> and Tajima's D depend on n. With `THETA_N` set (a number, or
 `min` for the smallest lineage's n), the same statistics are also estimated from that many
 samples per lineage, in the `Sub` columns. The samples used are listed in `theta/sub/` and
@@ -97,7 +104,10 @@ sizes differ much.
 
 **Sampling groups.** `groups` estimates F<sub>ST</sub> among sampling groups (the combination
 of `META_GROUPS` columns) within each lineage, for groups with at least `MIN_GROUP` (5) samples;
-the diary names each group left out and its n. Heterozygosity per group is `het/<SP>.het`
+the diary names each group left out and its n. It also gives π, θ<sub>W</sub> and Tajima's D per
+group (`angsd/groups/<SP>GroupTheta.out`), every group on the same sites, from all its samples
+and from the smallest group's n (`Sub` columns: compare θ<sub>W</sub> and Tajima's D there).
+With K = 1 this is the main diversity comparison. Heterozygosity per group is `het/<SP>.het`
 joined with `angsd/<SP>Groups`.
 
 ## F<sub>ST</sub>

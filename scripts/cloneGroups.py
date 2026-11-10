@@ -71,6 +71,8 @@ ap.add_argument("--window", type=float, default=3.0, help="gap cut: gaps must st
 ap.add_argument("--buffer", type=float, default=1.10, help="treeTrimmer cut: the replicates' deepest join x this (default 1.10)")
 ap.add_argument("--maxdrop", type=float, help="exit 4 if the groups would drop more than this proportion of the samples")
 ap.add_argument("--check", type=float, metavar="CUT", help="check mode: tree of a clone-free set with this cut; warn for pairs below it")
+ap.add_argument("--save-dist", metavar="FILE", help="check mode: also write the distance matrix used (rows in bam order; first line is its label), "
+                                                   "for the tree beside the admixture plots")
 ap.add_argument("--quality", help="<SP>Quality<N>X.txt (bam, proportion of sites at >= N x), for coverage in the borderline report")
 ap.add_argument("--meta", help="sample metadata CSV, for the dendrogram's tip colours and shapes")
 ap.add_argument("--meta-sample", default="sample", help="metadata column with the sample names (default sample)")
@@ -283,6 +285,10 @@ if a.check is not None:
     else:
         D = M; lab = LABEL["ibs"]
     Z = linkage(squareform(D, checks=False), "average")
+    if a.save_dist:
+        with open(a.save_dist, "w") as fh:
+            fh.write(f"# {lab}\n")
+            np.savetxt(fh, D, fmt="%.6f")
     close = sorted((D[i, j], names[i], names[j]) for i, j in zip(*iu))
     below = [x for x in close if x[0] < a.check]
     draw(Z, a.check, lab, f("CloneFreeDend.pdf"), title=f"{a.out}: clone-free samples; red: the clone cut ({a.check:.4f})")

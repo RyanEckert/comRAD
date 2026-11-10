@@ -31,6 +31,7 @@ own. Below is every script's `--help`, as `tools/makeDocs.py` captured it.
 | [`simCloneKin.py`](#simclonekinpy) | Simulates samples from two lineages, each with unrelated founders, full-sib families whose parents are also sampled (parent-offspring pairs), half-sibs, selfed sibs, clones (extra ramets of a genet) and technical replicates (the same colony sequenced again). |
 | [`plotStep.py`](#plotsteppy) | Draws comRAD's quick-look plots for one step from the files that step wrote, as one PDF per step (several panels or pages where there is more than one thing to show), plus PNGs of each page in run/&lt;pipeline&gt;/plots/ for comrad report. |
 | [`kmeansBic.py`](#kmeansbicpy) | Clusters samples by k-means on their principal components and scores each K by BIC, as adegenet's find.clusters does before DAPC (Jombart et al. |
+| [`localSaf.py`](#localsafpy) | Runs a realSFS or thetaStat command and exits 75 if it printed any bgzf read error, so the job is retried instead of passing a partial result on (realSFS can write partial output with exit 0 after one). |
 
 ## trim2bRAD.py
 
@@ -947,8 +948,8 @@ usage: cloneGroups.py [-h] -i IBS [-g GENO] -b BAMS [-r TECHREPS]
                       [--conf CONF [CONF ...]] [--min-shared MIN_SHARED]
                       [--min-well MIN_WELL] [--max-tight MAX_TIGHT]
                       [--window WINDOW] [--buffer BUFFER] [--maxdrop MAXDROP]
-                      [--check CUT] [--quality QUALITY] [--meta META]
-                      [--meta-sample META_SAMPLE]
+                      [--check CUT] [--save-dist FILE] [--quality QUALITY]
+                      [--meta META] [--meta-sample META_SAMPLE]
                       [--meta-groups [META_GROUPS ...]] [--color COLOR]
                       [--shape SHAPE] [--levels LEVELS] [--colors COLORS]
                       [--shapes SHAPES] -o OUT [--dir DIR]
@@ -986,6 +987,9 @@ options:
                         proportion of the samples
   --check CUT           check mode: tree of a clone-free set with this cut;
                         warn for pairs below it
+  --save-dist FILE      check mode: also write the distance matrix used (rows
+                        in bam order; first line is its label), for the tree
+                        beside the admixture plots
   --quality QUALITY     <SP>Quality<N>X.txt (bam, proportion of sites at >= N
                         x), for coverage in the borderline report
   --meta META           sample metadata CSV, for the dendrogram's tip colours
@@ -1279,8 +1283,8 @@ usage: plotStep.py [-h] [-s SP] [--dir DIR] [--meta META]
                    [--meta-groups [META_GROUPS ...]] [--color COLOR]
                    [--shape SHAPE] [--order [ORDER ...]] [--levels LEVELS]
                    [--colors COLORS] [--shapes SHAPES] [--kcolor KCOLOR]
-                   [--prefix PREFIX] [-k K] [--kin KIN] [--qdepth QDEPTH]
-                   [--pipeline PIPELINE]
+                   [--update] [--prefix PREFIX] [-k K] [--kin KIN]
+                   [--qdepth QDEPTH] [--pipeline PIPELINE]
                    {reads,pools,symbionts,pca,admix,kin,outliers,neutral,fst,het,theta}
 
 Draws comRAD's quick-look plots for one step from the files that step wrote, as one PDF per step (several panels or pages where there is more than one thing to show), plus PNGs of each page in run/<pipeline>/plots/ for comrad report. Meant for a first look; final figures belong in R.
@@ -1313,6 +1317,9 @@ options:
   --kcolor KCOLOR       admixture bars: this colour for the first cluster, the
                         rest lighter toward white in MAXK steps (hex without
                         #, or a name)
+  --update              rewrite the newest version of the plot instead of
+                        adding _v<n> (for steps that add to a plot an earlier
+                        step of the same run drew)
   --prefix PREFIX       admix: draw the run whose files start <SP><prefix>
                         (Neutral: the kin-free, neutral K run, written to
                         ngsAdmix/<SP>NeutralAdmix.pdf)
@@ -1329,13 +1336,13 @@ kinds:
   pools      RawCounts.pdf (reads pipeline, project folder): raw and kept reads per pool
   symbionts  bams/<SP>Symbionts.pdf: share of symbiont reads per genus, per sample
   pca        pcangsd/<SP>Pca.pdf: PC1-2 and PC3-4 of the PCAngsd covariance, % variance on the axes
-  admix      ngsAdmix/<SP>Admix.pdf: NGSadmix bars for K = 2..MAXK (best run, one sample order, colours matched across K), and PCAngsd's own admixture at its K; evalAdmix residual RMSD and log-likelihood against K
-  kin        relatedness/<SP>Kin.pdf: pairwise kinship (theta) from NGSremix, the KIN cut marked
+  admix      ngsAdmix/<SP>Admix.pdf: the clone-free tree (the clone step's distance) with sampling-group tiles and NGSadmix bars for K = 2..MAXK and PCAngsd's own K in the tree's leaf order; the same bars ordered by sampling group (colours matched across K); evalAdmix residual RMSD, log-likelihood and k-means BIC against K
+  kin        relatedness/<SP>Kin.pdf: pairwise kinship (theta) from NGSremix by pair type (within each lineage, between lineages, with Admixed): histograms; boxplots of every pair and of each sample's closest relative; the share of pairs at or above each kinship; counts per degree class. KIN and the KING degree bounds marked
   outliers   angsd/lineages/<SP>Outliers.pdf: PCAngsd selection statistic along the genome per lineage (outliers in red); within-lineage PCAs
-  neutral    ngsAdmix/<SP>Neutral.pdf: neutral, kin-free bars next to the full run's at K; neutral PCA
+  neutral    ngsAdmix/<SP>Neutral.pdf: neutral, kin-free bars next to the full run's at K; pcangsd/<SP>PcaCompare.pdf: the PCA of all samples and the neutral, kin-free PCA, each coloured by sampling group and by lineage
   fst        sfs/<SP>Fst.pdf: weighted FST between lineages (neutral and all sites) and between groups within lineages
   het        het/<SP>Het.pdf: heterozygosity per sample by lineage and group; against coverage
-  theta      theta/<SP>Theta.pdf: pi, Watterson's theta and Tajima's D per lineage (and the THETA_N subsample)
+  theta      theta/<SP>Theta.pdf: pi, Watterson's theta and Tajima's D per lineage (and the THETA_N subsample); per sampling group (all samples and the smallest group's n) when the groups step ran
 
 examples (from the species folder):
   plotStep.py pca -s sint --meta meta.csv --meta-groups bank depthZone
@@ -1394,4 +1401,37 @@ output:
 tested on simulated genotypes with noise (50 per population, 3000 SNPs): one population -> 1; two at FST 0.1
 or 0.02 -> 2; three at FST 0.05 -> 3; three at FST 0.01 -> 1 (too weak). Clone groups and close families
 also form clusters, so run it on clone-free data and read it beside the kin-free rerun.
+```
+
+## localSaf.py
+
+```text
+usage: localSaf.py [-h] [--local-copy {yes,no}] [--tmp TMP] ...
+
+Runs a realSFS or thetaStat command and exits 75 if it printed any bgzf read error, so the job is retried instead of passing a partial result on (realSFS can write partial output with exit 0 after one). With local copies on (--local-copy yes, or [cluster] local_copy = yes, which comrad exports as CFG_cluster_local_copy), every .saf.idx, .thetas.idx and .fst.idx it names is first copied, with the .gz files beside it, to node-local disk ($TMPDIR, else /tmp), and the command reads the copies: on some parallel file systems (BeeGFS) bgzf reads fail intermittently on intact files while plain copies read fine. Anything the command writes next to a copied input (thetaStat's .pestPG) is copied back beside the original.
+
+positional arguments:
+  cmd                   the realSFS or thetaStat command and its arguments
+
+options:
+  -h, --help            show this help message and exit
+  --local-copy {yes,no}
+                        read copies on node-local disk (default:
+                        $CFG_cluster_local_copy, else no)
+  --tmp TMP             local folder for the copies (default $TMPDIR, else
+                        /tmp)
+
+examples:
+  localSaf.py realSFS ../het/SGM184.saf.idx -fold 1 >../het/SGM184.ml
+      one sample's SFS, read in place (local copies off, the default); fails on a bgzf error
+  localSaf.py --local-copy yes realSFS ../het/SGM184.saf.idx -fold 1 >../het/SGM184.ml
+      the same, read from a copy on node-local disk
+  localSaf.py realSFS ofavCluster1SFS.saf.idx ofavCluster2SFS.saf.idx -maxIter 1000 -P 4 >ofavCluster1.Cluster2.sfs
+      a 2D SFS
+  localSaf.py thetaStat do_stat ../theta/sintCluster1.thetas.idx
+      writes ../theta/sintCluster1.thetas.idx.pestPG as thetaStat would
+  localSaf.py --local-copy yes --tmp /scratch/me realSFS fst stats ofavCluster1.Cluster2.fst.idx
+      copies to /scratch/me instead of $TMPDIR
+
+Output paths the command names (>, -outname, -fstout) are left alone and written where they point.
 ```

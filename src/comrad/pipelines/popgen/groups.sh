@@ -55,7 +55,7 @@ comrad-jobs ${SP}GroupSFS -n ${SP}GroupSFS --res saf || stop "group SAFs failed"
 cd groups
 >${SP}GroupFstJobs
 while read L a b; do
-job "test -s ${SP}${L}_${a}.${b}.fst.idx" "realSFS ${SP}${L}_${a}.saf.idx ${SP}${L}_${b}.saf.idx -maxIter 1000 -P $CFG_fst_cpus >${SP}${L}_${a}.${b}.sfs && realSFS fst index ${SP}${L}_${a}.saf.idx ${SP}${L}_${b}.saf.idx -sfs ${SP}${L}_${a}.${b}.sfs -whichFst 1 -fstout ${SP}${L}_${a}.${b}" >>${SP}GroupFstJobs
+job "test -s ${SP}${L}_${a}.${b}.fst.idx" "localSaf.py realSFS ${SP}${L}_${a}.saf.idx ${SP}${L}_${b}.saf.idx -maxIter 1000 -P $CFG_fst_cpus >${SP}${L}_${a}.${b}.sfs && localSaf.py realSFS fst index ${SP}${L}_${a}.saf.idx ${SP}${L}_${b}.saf.idx -sfs ${SP}${L}_${a}.${b}.sfs -whichFst 1 -fstout ${SP}${L}_${a}.${b}" >>${SP}GroupFstJobs
 done <${SP}GroupPairs
 comrad-jobs ${SP}GroupFstJobs -n ${SP}GroupFst --res fst || stop "group FST failed"
 converged $(rtlogs ${SP}GroupFst)
@@ -64,4 +64,39 @@ while read L a b; do v=$(fststats ${SP}${L}_${a}.${b}.fst.idx) || stop "no FST f
 } >${SP}GroupFst.out
 cat ${SP}GroupFst.out
 
-plots fst
+# diversity per group: pi, Watterson's theta and Tajima's D, every group on the same sites (those in all the
+# group SAFs), from all its samples and from the smallest group's n, since theta W and Tajima's D depend on n
+NG=$(cut -f2,3 ${SP}GroupBams | sort | uniq -c | awk 'NR == 1 || $1 < m {m = $1} END {print m}')
+mkdir -p sub
+>${SP}GroupSubSAF
+while read L G; do
+B=sub/${SP}${L}_${G}SubBams      # bam paths as in GroupBams, relative to angsd/, so the job runs from there
+# the same individuals on every run (ordered by an md5 of the bam name)
+while read -r b; do printf '%s\t%s\n' "$(printf '%s' "$(basename "$b")" | md5sum | cut -c1-32)" "$b"; done <${SP}${L}_${G}Bams |
+  sort -k1,1 | awk -F'\t' -v n=$NG 'NR <= n {print $2}' | sort >$B.new
+if ! cmp -s $B.new $B; then rm -f sub/${SP}${L}_${G}Sub.* sub/${SP}${L}_${G}Sub_*; mv $B.new $B; else rm $B.new; fi
+job "gzip -t sub/${SP}${L}_${G}Sub.saf.gz && test -s sub/${SP}${L}_${G}Sub.saf.idx" "cd .. && angsd -b groups/$B -sites ${SP}SFSsitesToDo -rf ${SP}SFSregions -GL 1 -P $CFG_saf_cpus $FILTERS $TODO -out groups/sub/${SP}${L}_${G}Sub" >>${SP}GroupSubSAF
+done <${SP}GroupList
+comrad-jobs ${SP}GroupSubSAF -n ${SP}GroupSubSAF --res saf || stop "subsampled group SAFs failed"
+SAFS=$(while read L G; do echo ${SP}${L}_${G}.saf.idx sub/${SP}${L}_${G}Sub.saf.idx; done <${SP}GroupList)
+commonsites ${SP}GroupThetaPos ${SP}GroupThetaSites $SAFS &&
+  rm -f ${SP}*_theta.thetas.* ${SP}*.folded.sfs sub/*_theta.thetas.* sub/*.folded.sfs
+NT=$(wc -l <${SP}GroupThetaSites)
+[ $NT -gt 0 ] || stop "no site is in every group's SAF"
+note "group diversity: $NT sites in every group's SAF; theta per group from all its samples and from $NG per group (the smallest group)"
+ST="-sites ${SP}GroupThetaSites"
+>${SP}GroupThetas
+while read L G; do for S in ${SP}${L}_${G} sub/${SP}${L}_${G}Sub; do
+job "test -s ${S}_theta.thetas.idx.pestPG" "localSaf.py realSFS $S.saf.idx $ST -fold 1 -maxIter 1000 -P $CFG_theta_cpus >$S.folded.sfs && localSaf.py realSFS saf2theta $S.saf.idx $ST -sfs $S.folded.sfs -outname ${S}_theta -fold 1 && localSaf.py thetaStat do_stat ${S}_theta.thetas.idx" >>${SP}GroupThetas
+done; done <${SP}GroupList
+comrad-jobs ${SP}GroupThetas -n ${SP}GroupThetas --res theta || stop "group thetas failed"
+converged $(rtlogs ${SP}GroupThetas)
+{ printf 'lineage\tgroup\tn\tpi\tthetaW\ttajimaD\tnSites\tnSub\tpiSub\tthetaWSub\ttajimaDSub\tnSitesSub\n'
+while read L G; do
+printf '%s\t%s\t%d\t%s\t%d\t%s\n' $L $G $(wc -l <${SP}${L}_${G}Bams) "$(tstat ${SP}${L}_${G}_theta.thetas.idx.pestPG $(wc -l <${SP}${L}_${G}Bams))" \
+  $NG "$(tstat sub/${SP}${L}_${G}Sub_theta.thetas.idx.pestPG $NG)"
+done <${SP}GroupList
+} >${SP}GroupTheta.out
+cat ${SP}GroupTheta.out
+
+plots fst --update

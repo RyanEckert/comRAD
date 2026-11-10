@@ -238,8 +238,13 @@ def samples_of(listfile):
 def t_angsd():
     if args[:2] == ["sites", "index"]:
         open(args[2] + ".idx", "w").write("idx\n")
+        open(args[2] + ".bin", "w").write("bin\n")
         return
     out = opt("-out")
+    bams = lines(opt("-b")) if opt("-b") else [opt("-i")]
+    miss = [b for b in bams if not os.path.exists(b.split()[0])]
+    if miss:                                  # as angsd: a bam that is not there (e.g. a path relative to another folder)
+        sys.exit(f"angsd: cannot open {miss[0]} (from {os.getcwd()})")
     if opt("-b"):
         sm = samples_of(opt("-b"))
     else:
@@ -286,10 +291,15 @@ def t_angsd():
                 f += ([str(g)] if mode & 2 else []) + ([["AA", "AG", "GG"][g]] if mode & 4 else []) + (post if mode & 8 else [])
             rows.append("\t".join(f) + "\n")
         gz(out + ".geno.gz", "".join(rows))
+    if "-dumpCounts" in args:
+        # depth 12 everywhere, but the first sample is below 10 at every 7th site
+        gz(out + ".pos.gz", "chr\tpos\ttotDepth\n" + "".join(f"{c}\t{p}\t{12 * n}\n" for c, p in sites))
+        gz(out + ".counts.gz", "".join(f"ind{i}TotDepth\t" for i in range(n)) + "\n" +
+           "".join("".join(f"{8 if i == 0 and p % 7 == 0 else 12}\t" for i in range(n)) + "\n" for c, p in sites))
     if "-doSaf" in args:
         open(out + ".saf.idx", "w").write(f"n={n}\n")
         gz(out + ".saf.gz", "saf\n")
-        gz(out + ".saf.pos.gz", "pos\n")
+        gz(out + ".saf.pos.gz", "".join(f"{c}\t{p}\n" for c, p in sites))
 
 
 def nsaf(idx):
@@ -312,8 +322,13 @@ def t_realSFS():
         open(opt("-outname") + ".thetas.idx", "w").write("thetas\n")
         return
     idx = [a for a in args if a.endswith(".saf.idx")]
-    if args[0].startswith("../het/") or (len(idx) == 1 and "/het/" in idx[0]):
-        print("800 150 50")
+    if args[0] == "print":
+        for l in gzip.open(idx[0].removesuffix(".idx") + ".pos.gz", "rt"):
+            print(l.rstrip("\n") + "\t0.000000\t-1.0\t-2.0")
+        return
+    if len(idx) == 1 and nsaf(idx[0]) == 1:          # one sample: heterozygosity
+        ns = sum(1 for _ in gzip.open(idx[0].removesuffix(".idx") + ".pos.gz", "rt"))
+        print(f"{ns * .8:.2f} {ns * .15:.2f} {ns * .05:.2f}")
         return
     if len(idx) == 2:
         na, nb = nsaf(idx[0]), nsaf(idx[1])

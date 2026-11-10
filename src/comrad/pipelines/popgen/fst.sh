@@ -3,7 +3,7 @@ inskip && skip "in SKIP"
 cd "$WD/sfs"
 >${SP}2dSFS
 while read a b; do
-job "test -s ${SP}${a}.${b}.sfs -a -s ${SP}${a}.${b}.fst.idx" "realSFS ${SP}${a}SFS.saf.idx ${SP}${b}SFS.saf.idx -maxIter 1000 -P $CFG_fst_cpus >${SP}${a}.${b}.sfs && realSFS fst index ${SP}${a}SFS.saf.idx ${SP}${b}SFS.saf.idx -sfs ${SP}${a}.${b}.sfs -whichFst 1 -fstout ${SP}${a}.${b}" >>${SP}2dSFS
+job "test -s ${SP}${a}.${b}.sfs -a -s ${SP}${a}.${b}.fst.idx" "localSaf.py realSFS ${SP}${a}SFS.saf.idx ${SP}${b}SFS.saf.idx -maxIter 1000 -P $CFG_fst_cpus >${SP}${a}.${b}.sfs && localSaf.py realSFS fst index ${SP}${a}SFS.saf.idx ${SP}${b}SFS.saf.idx -sfs ${SP}${a}.${b}.sfs -whichFst 1 -fstout ${SP}${a}.${b}" >>${SP}2dSFS
 done < <(pairs)
 comrad-jobs ${SP}2dSFS -n ${SP}2dSFS --res fst || stop "2D SFS failed"
 converged $(rtlogs ${SP}2dSFS)

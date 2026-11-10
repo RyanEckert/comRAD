@@ -7,6 +7,7 @@ P=$koko/2bRAD/proj; mkdir -p $P && cd $P
 export FAKE_SBATCH_LOG=$T/sbatch.log; >$FAKE_SBATCH_LOG
 comrad init cluster >/dev/null
 sed -i 's/^queue = .*/queue = shortq7/; s/^long_queue = .*/long_queue = longq7/; s/^email = .*/email = $EMAIL/; s/^slurm = .*/slurm = constraint=amd/' cluster.config
+[ -n "$MOCK_LOCALCOPY" ] && sed -i "s/^local_copy = .*/local_copy = yes/" cluster.config
 # sample sheet: 16 barcodes -> 14 sint samples (one admixed, two technical replicates) + 2 of another species
 i=0; >sampleID.csv
 for p in pool1 pool2 pool3 pool4; do for bc in AAAA CCCC GGGG TTTT; do i=$((i+1))
@@ -28,6 +29,9 @@ sed -i "s|^SP = .*|SP = sint|; s|^GENOME_FASTA = .*|GENOME_FASTA = $koko/ref/hos
 [ -n "$MOCK_CLONEPAUSE" ] || sed -i "s|^CLONE_PAUSE = .*|CLONE_PAUSE = no|" popgen.config
 [ -n "$MOCK_QDEPTH" ] && sed -i "s|^QDEPTH = .*|QDEPTH = $MOCK_QDEPTH|" popgen.config
 [ -n "$MOCK_OLDKEYS" ] && sed -i "s|^MINQ = .*|MINQ5 = 0.3|; s|^CLONE_MINQ = .*|CLONE_MINQ5 = 0.4|" popgen.config
+[ -n "$MOCK_KINKEEP" ] && sed -i "s|^KIN_DROP = .*|KIN_DROP = no|" popgen.config
+[ -n "$MOCK_HETDEPTH" ] && sed -i "s|^HET_DEPTH = .*|HET_DEPTH = $MOCK_HETDEPTH|" popgen.config
+[ -n "$MOCK_MINGROUP" ] && sed -i "s|^MIN_GROUP = .*|MIN_GROUP = $MOCK_MINGROUP|" popgen.config
 [ -n "$MOCK_THETAN" ] && sed -i "s|^THETA_N = .*|THETA_N = $MOCK_THETAN|" popgen.config
 [ -n "$MOCK_METRIC" ] && sed -i "s|^CLONE_METRIC = .*|CLONE_METRIC = $MOCK_METRIC|" popgen.config
 [ -n "$MOCK_CLONEH" ] && sed -i "s|^CLONE_CUT = .*|CLONEH = $MOCK_CLONEH|" popgen.config

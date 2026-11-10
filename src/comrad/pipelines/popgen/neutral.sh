@@ -25,9 +25,10 @@ admixResiduals.py -s ${SP}Neutral -k $MAXK -b ../angsd/${SP}NeutralBams --cut $R
   --meta-groups $META_GROUPS || stop "neutral residual summary failed; see above"
 kmeansBic.py -c ../pcangsd/${SP}NeutralPcangsd.cov -k $MAXK -o ${SP}Neutral_bic.txt || note "WARNING: neutral k-means BIC failed; see above"
 kevidence ${SP}Neutral ${SP}NeutralPcangsd
-note "kin-free, neutral K: evalAdmix elbow ${ev:-none}, PCAngsd ${pc:-?}, residual-block ${rk:-none below $RESID_MAX}, k-means BIC ${bic:-?}; runs in the dominant mode per K: $sup (chosen K = $K; plots: ngsAdmix/${SP}NeutralAdmix.pdf, ngsAdmix/${SP}NeutralResiduals.pdf)"
+kf=kin-free; [ -s ../relatedness/${SP}KinDrop ] || kf="kin kept"
+note "$kf, neutral K: evalAdmix elbow ${ev:-none}, PCAngsd ${pc:-?}, residual-block ${rk:-none below $RESID_MAX}, k-means BIC ${bic:-?}; runs in the dominant mode per K: $sup (chosen K = $K; plots: ngsAdmix/${SP}NeutralAdmix.pdf, ngsAdmix/${SP}NeutralResiduals.pdf)"
 [ "$ev" = "$K" ] || [ "$pc" = "$K" ] || [ "$rk" = "$K" ] || [ "$bic" = "$K" ] ||
-  note "WARNING: without kin and outlier loci, no read on K gives the chosen K = $K (elbow ${ev:-none}, PCAngsd ${pc:-?}, residual-block ${rk:-none}, k-means BIC ${bic:-?}); look at ngsAdmix/${SP}NeutralAdmix.pdf before going on"
+  note "WARNING: $kf, without outlier loci, no read on K gives the chosen K = $K (elbow ${ev:-none}, PCAngsd ${pc:-?}, residual-block ${rk:-none}, k-means BIC ${bic:-?}); look at ngsAdmix/${SP}NeutralAdmix.pdf before going on"
 echo; cat ${SP}Neutral_bestQ.txt; echo; cat ${SP}Neutral_fit.txt; echo; cat ${SP}Neutral_resid.txt; echo; cat ${SP}Neutral_bic.txt 2>/dev/null
 cp ${SP}Neutral_k${K}_best.qopt ${SP}Neutral_best.qopt
 
@@ -63,11 +64,11 @@ moved = [x for x in bams if (old[x] == "Admixed") != (new[x] == "Admixed")]
 for x in moved:
     print(f"moved: {x}\t{old[x]} -> {new[x]}")
 if bad:
-    print("NOTE: WARNING: the neutral, kin-free run does not match the lineages one to one (" + "; ".join(bad) +
+    print("NOTE: WARNING: the neutral run does not match the lineages one to one (" + "; ".join(bad) +
           f"); {len(moved)} individuals moved to or from Admixed. Later steps use the lineages from the full SNP set; "
           "structure may be driven by outlier loci or kin (table: ngsAdmix/" + out + ")")
 else:
-    print(f"NOTE: neutral, kin-free run matches the lineages; {len(moved)} individuals moved to or from Admixed")
+    print(f"NOTE: neutral run matches the lineages; {len(moved)} individuals moved to or from Admixed")
 PY
 
 plots neutral

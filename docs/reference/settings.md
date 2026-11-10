@@ -74,12 +74,14 @@ Run from the species folder. **Required** settings must be filled in; `comrad ch
 | `MINPURE` | `2` | fewest pure individuals a lineage may have |
 | `LINEAGE_MAXHET` | *(empty)* | within each lineage, remove sites heterozygous in more than this share of samples (e.g. 0.5: likely paralogs); empty = report only |
 | `KIN` | `0.125` | NGSremix kinship at or above which one of a pair is dropped |
+| `KIN_DROP` | `yes` | no: still run NGSremix and draw the kinship plots, but keep every individual (kin stay in the SFS, theta and FST) |
 | `MIN_GROUP` | `5` | smallest lineage x sampling group kept for group FST (smaller ones are named in the diary) |
 
 ### Diversity
 
 | setting | default | what it does |
 |---|---|---|
+| `HET_DEPTH` | *(empty)* | heterozygosity: empty = each sample on its own sites at &gt;= the [het] -setMinDepthInd (10); a number = thin every sample's reads to that mean depth first (e.g. 5 for low coverage), leaving out samples below it; use it if het follows coverage |
 | `THETA_N` | *(empty)* | theta always from all pure individuals per lineage; a number or 'min' (smallest lineage) also gives theta from that many per lineage (Sub columns) |
 | `PLOT_COLOR` | *(empty)* | factor that colours points; empty = the first META_GROUPS column |
 | `PLOT_SHAPE` | *(empty)* | factor that sets point shapes; empty = the second META_GROUPS column |
@@ -108,10 +110,10 @@ Run from the species folder. **Required** settings must be filled in; `comrad ch
 | `[selection]` | PCAngsd selection scan within each lineage | 8 | 64GB |  |
 | `[outliers]` | PCAngsd within each lineage, outliers removed | 8 | 64GB |  |
 | `[neutral]` | PCAngsd on neutral, kin-free SNPs (NGSadmix and evalAdmix there use [admix] and [evaladmix]) | 8 | 64GB |  |
-| `[sfssites]` | ANGSD site discovery for the SFS, per lineage | 1 | 64GB | `-uniqueOnly 1 -remove_bads 1 -minMapQ 30 -minQ 30 -skipTriallelic 1 -sb_pval 1e-3 -hetbias_pval 1e-3` |
-| `[saf]` | ANGSD site allele frequencies (SFS, theta, FST): per lineage, full panel and sampling group | 1 | 32GB | `-uniqueOnly 1 -remove_bads 1 -minMapQ 30 -minQ 30` |
+| `[sfssites]` | ANGSD site discovery for the SFS, per lineage | 1 | 64GB | `-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25 -skipTriallelic 1 -sb_pval 1e-3 -hetbias_pval 1e-3` |
+| `[saf]` | ANGSD site allele frequencies (SFS, theta, FST): per lineage, full panel and sampling group | 1 | 32GB | `-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25` |
 | `[fst]` | realSFS 2D spectra and FST, per pair | 20 | 64GB |  |
-| `[het]` | ANGSD + realSFS per sample on the SFS sites, for heterozygosity; 10x floor: one sample alone has no pooling to correct low-depth bias | 1 | 8GB | `-uniqueOnly 1 -remove_bads 1 -minMapQ 30 -minQ 30 -setMinDepthInd 10` |
+| `[het]` | ANGSD + realSFS per sample on the SFS sites, for heterozygosity; 10x floor: one sample alone has no pooling to correct low-depth bias | 1 | 8GB | `-uniqueOnly 1 -remove_bads 1 -minMapQ 20 -minQ 25 -setMinDepthInd 10` |
 | `[theta]` | realSFS and thetaStat per lineage | 4 | 32GB |  |
 
 `[map]` with `mem` empty asks for the bowtie2 index size × 1.5 + 2 GB per task.
@@ -156,3 +158,4 @@ or up to three folders above, so one in the project folder covers every species 
 | `driver_time` | *(empty)* | driver time limit, e.g. 2-00:00:00 (helps it start sooner on a busy partition); empty = the partition maximum |
 | `driver_cpus` | `8` | driver CPUs, used by the steps' own short work (sorting, R plots) |
 | `driver_mem` | `32GB` | driver memory |
+| `local_copy` | `no` | yes: realSFS and thetaStat read copies of their SAF, theta and FST files on node-local disk ($TMPDIR), for file systems that give bgzf read errors on intact files (BeeGFS); needs local space for the largest SAF |

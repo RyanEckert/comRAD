@@ -12,4 +12,4 @@ comrad-jobs ${SP}ParalogJobs -n ${SP}Paralog --res paralog || stop "ngsParalog f
 paralogFilter.py --collect paralog -s ${SP}DepthSites -o ${SP} || stop "paralogFilter.py failed; see above"
 wc -l ${SP}DepthSites ${SP}ParalogSites ${SP}KeepSites
 note "$(wc -l <${SP}ParalogSites) paralog sites removed of $(wc -l <${SP}DepthSites)"
-angsd sites index ${SP}KeepSites
+sitesindex ${SP}KeepSites

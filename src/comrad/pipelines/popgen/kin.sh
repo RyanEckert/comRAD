@@ -10,9 +10,10 @@ equal $np $(( nb * (nb - 1) / 2 )) "${SP}Remix pairs vs n(n-1)/2"
 
 # pairs at theta >= KIN lose one member at a time: most remaining pairs first,
 # then lower proportion of sites at >= QDEPTH x
-python3 - ${SP}Remix ../angsd/${SP}Bams ../angsd/${SP}Quality${QDEPTH}X.txt $KIN ${SP} ../angsd/${SP}BamsClusters <<'PY' || stop "kin drop failed; see above"
+python3 - ${SP}Remix ../angsd/${SP}Bams ../angsd/${SP}Quality${QDEPTH}X.txt $KIN ${SP} ../angsd/${SP}BamsClusters ${KIN_DROP:-yes} <<'PY' || stop "kin drop failed; see above"
 import os, sys
-remix, bams, qual, kin, sp, clusters = sys.argv[1:7]
+remix, bams, qual, kin, sp, clusters, dodrop = sys.argv[1:8]
+dodrop = dodrop != "no"
 kin = float(kin)
 key = lambda s: os.path.basename(s).removesuffix(".bam")
 b = [l.strip() for l in open(bams) if l.strip()]
@@ -48,14 +49,23 @@ while left:
     out = max(deg, key=lambda z: (deg[z], -q[key(z)]))
     drop.append(out)
     left = [r for r in left if out not in r[1:3]]
+would = len(drop)
+if not dodrop:
+    drop = []
 open(f"{sp}KinDrop", "w").write("".join(f"{x}\n" for x in drop))
+if dodrop:
+    if os.path.exists(f"{sp}KinKept"):
+        os.remove(f"{sp}KinKept")
+else:
+    open(f"{sp}KinKept", "w").write(f"KIN_DROP = no: {len(pairs)} pairs at theta >= {kin} kept; {would} individuals would have been dropped\n")
 with open(f"{sp}Kin", "w") as fh:
     fh.write("ind1\tind2\tlineage1\tlineage2\ttheta\tk0\tk1\tk2\tq5_1\tq5_2\tdropped\n")
     for th, x, y, k0, k1, k2 in sorted(pairs, reverse=True):
         d = ",".join(key(z) for z in (x, y) if z in drop)
         fh.write(f"{key(x)}\t{key(y)}\t{lin.get(key(x), '?')}\t{lin.get(key(y), '?')}\t{th:.4f}\t{k0}\t{k1}\t{k2}\t{q[key(x)]:.4f}\t{q[key(y)]:.4f}\t{d}\n")
 cross = [p for p in pairs if lin.get(key(p[1])) != lin.get(key(p[2])) and "Admixed" not in (lin.get(key(p[1])), lin.get(key(p[2])))]
-print(f"NOTE: {len(pairs)} pairs at theta >= {kin}; {len(drop)} of {len(b)} individuals dropped")
+print(f"NOTE: {len(pairs)} pairs at theta >= {kin}; {len(drop)} of {len(b)} individuals dropped" if dodrop else
+      f"NOTE: {len(pairs)} pairs at theta >= {kin}; KIN_DROP = no, so all {len(b)} kept ({would} would have been dropped)")
 if cross:
     print(f"NOTE: {len(cross)} of those pairs are between two different lineages; check {sp}Kin before trusting them")
 PY

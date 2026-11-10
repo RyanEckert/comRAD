@@ -26,3 +26,21 @@ kevidence(){
   sup=$(awk -F'\t' 'NR==1 {for (i = 1; i <= NF; i++) {if ($i == "K") a = i; if ($i == "inMode") b = i; if ($i == "runs") c = i}; next}
     {printf "%s%s:%s/%s", (n++ ? " " : ""), $a, $b, $c}' $1_bestQ.txt)
 }
+# tstat PESTPG N: pi, Watterson's theta, Tajima's D (Tajima 1989, n = 2 x N individuals) and sites from summed thetas
+tstat(){ awk -v n=$((2 * $2)) 'NR>1 {tW+=$4; tP+=$5; ns+=$NF}
+  END {for (i=1; i<n; i++) {a1+=1/i; a2+=1/(i*i)}
+       b1=(n+1)/(3*(n-1)); b2=2*(n*n+n+3)/(9*n*(n-1)); c1=b1-1/a1; c2=b2-(n+2)/(a1*n)+a2/(a1*a1)
+       e1=c1/a1; e2=c2/(a1*a1+a2); S=tW*a1
+       printf "%.6f\t%.6f\t%.4f\t%d", tP/ns, tW/ns, (tP-tW)/sqrt(e1*S+e2*S*(S-1)), ns}' "$1"; }
+# commonsites NAME OUT SAF...: OUT = the sites in every SAF (realSFS print, run as jobs), indexed for -sites;
+# succeeds only if OUT changed, so callers can clear what was estimated on the old sites
+commonsites(){ local name=$1 out=$2 f; shift 2
+  >${name}Jobs
+  for f; do job "test -s ${f%.saf.idx}.pos && test ${f%.saf.idx}.pos -nt $f" "localSaf.py realSFS print $f | cut -f 1,2 >${f%.saf.idx}.pos" >>${name}Jobs; done
+  comrad-jobs ${name}Jobs -n $name --res theta || stop "realSFS print failed"
+  awk -v n=$# '(++c[$0]) == n' $(for f; do echo ${f%.saf.idx}.pos; done) >$out.new
+  local changed=0
+  if cmp -s $out.new $out; then rm $out.new; changed=1; else mv $out.new $out; fi
+  sitesindex $out
+  return $changed
+}

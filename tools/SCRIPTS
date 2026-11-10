@@ -25,3 +25,4 @@ cloneTestScore.py
 simCloneKin.py
 plotStep.py
 kmeansBic.py
+localSaf.py

@@ -15,4 +15,4 @@ awk -v W=35 'FILENAME==ARGV[1] {o[$1]=o[$1]" "$2; next}
 need ${SP}SFSsitesToDo
 cut -f 1 ${SP}SFSsitesToDo | uniq >${SP}SFSregions
 note "SFS sites: $(wc -l <${SP}SFSsitesToDo) neutral of $(wc -l <${SP}SFSallSites)"
-angsd sites index ${SP}SFSsitesToDo
+sitesindex ${SP}SFSsitesToDo

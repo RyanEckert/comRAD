@@ -133,6 +133,7 @@ RENAMED = {
     "CLONE_MINQ5": lambda v: [("CLONE_MINQ", v)],
     "CLONEH": lambda v: [("CLONE_CUT", v)] if v else [],
     "PLOT_KRAMP": lambda v: [("PLOT_KCOLOR", v)] if v else [],
+    "HET_MINCOV": lambda v: [],              # shared-site heterozygosity, replaced by HET_DEPTH
 }
 
 
@@ -328,7 +329,7 @@ class Pipeline:
             print(f"  [{sec}] defaults: {' '.join(kv)}")
         cl = self.cluster_file()
         print(f"  cluster settings: {cl if cl else f'no cluster.config found (write one with: {prog} init cluster)'}")
-        for k in ("queue", "long_queue", "max_mem", "max_running", "email", "slurm", "driver_queue", "driver_time"):
+        for k in ("queue", "long_queue", "max_mem", "max_running", "email", "slurm", "driver_queue", "driver_time", "local_copy"):
             print(f"    {k} = {os.path.expandvars(self.setting('cluster.' + k)) or '(empty)'}")
 
     # ---- state

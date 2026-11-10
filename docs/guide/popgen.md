@@ -35,7 +35,7 @@ each step will run with. `comrad list popgen` shows which steps are done.
 | | `symbionts` | reads per symbiont genus (host-only runs skip it) |
 | | `K` | lays out the evidence for K. **Pause 2** |
 | **Lineages** | `assign` | assigns each sample to a lineage if its ancestry is at least `ASSIGN`, otherwise *Admixed* |
-| | `kin` | NGSremix; drops one of each pair related at or above `KIN` |
+| | `kin` | NGSremix; drops one of each pair related at or above `KIN` (`KIN_DROP = no`: plots kinship but keeps everyone) |
 | | `lineagebams` | pure, kin-free samples per lineage |
 | | `lineagesnps` | SNPs within each lineage, with heterozygosity per site (`LINEAGE_MAXHET`); PCAngsd selection scan |
 | | `outliers` | outlier SNPs (FDR < 0.05 on any PC, per lineage); within-lineage PCA without them |
@@ -44,9 +44,9 @@ each step will run with. `comrad list popgen` shows which steps are done.
 | | `saf` | site allele frequencies per lineage |
 | | `fst` | 2D spectra and F<sub>ST</sub> between lineages, on those neutral sites |
 | | `fstall` | the same on the full panel, outliers in, for comparison |
-| | `groups` | F<sub>ST</sub> among sampling groups within each lineage |
-| | `het` | heterozygosity per sample |
-| | `theta` | π, Watterson's θ and Tajima's D per lineage |
+| | `groups` | F<sub>ST</sub> among sampling groups within each lineage; π, θ<sub>W</sub>, Tajima's D per group |
+| | `het` | heterozygosity per sample, every sample on the same sites |
+| | `theta` | π, Watterson's θ and Tajima's D per lineage, every lineage on the same sites |
 | | `tarball` | the results tarball and the HTML report |
 
 The two pauses are explained in [Clones and K](decisions.md), and the outputs in [Results](results.md).
@@ -55,6 +55,14 @@ The two pauses are explained in [Clones and K](decisions.md), and the outputs in
 
 `MIN_IND` (0.75) is the proportion of samples a site must have data in, for every ANGSD
 analysis; a section's `min_ind` overrides it. The depth pass uses 0.5.
+
+Every ANGSD step reads with `-minMapQ 20 -minQ 25`. With 2bRAD's short tags, each mismatch to
+the reference lowers a read's mapping quality, so a stricter `-minMapQ` drops reads that carry
+the non-reference allele more often than reads that match, and heterozygotes look homozygous
+(on NWGOM data, MAPQ 30 kept 41-49% of one-mismatch reads against 70-73% of exact matches, and
+almost no two-mismatch reads). The sites for the SFS, θ, F<sub>ST</sub> and heterozygosity use only
+filters that do not change allele frequencies: no `-snp_pval`, `-minMaf` or `-hwe_pval`, so
+invariant sites and rare variants stay in.
 
 No step has a per-sample depth floor except heterozygosity (10 reads). The others pool
 genotype likelihoods across samples, which handles low depth; one sample on its own cannot.

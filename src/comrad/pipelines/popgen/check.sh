@@ -1,5 +1,5 @@
 tools comrad-jobs cutadapt bowtie2 samtools angsd realSFS thetaStat pcangsd NGSadmix evalAdmix NGSremix ngsParalog \
-  readCounts.py bowtie2Launcher.py plotQC.py filterBams.py paralogFilter.py pruneSnps.py pcangsdFisToText.py ngsAdmixLauncher.py pickQ.py pcangsdOutliers.py subsetBeagle.py cloneGroups.py admixResiduals.py plotStep.py kmeansBic.py mind
+  readCounts.py bowtie2Launcher.py plotQC.py filterBams.py paralogFilter.py pruneSnps.py pcangsdFisToText.py ngsAdmixLauncher.py pickQ.py pcangsdOutliers.py subsetBeagle.py cloneGroups.py admixResiduals.py plotStep.py kmeansBic.py localSaf.py mind
 hasSym && tools splitHostSym.py
 idx(){ ls "$1".1.bt2 "$1".1.bt2l >/dev/null 2>&1 || ls "$1".1.bt2* >/dev/null 2>&1 || stop "$1 has no bowtie2 index"; [ -s "$1.fai" ] || stop "$1 has no .fai (samtools faidx)"; }
 need "$GENOME_FASTA"; idx "$GENOME_FASTA"
@@ -11,6 +11,9 @@ num(){ [[ $1 =~ ^[0-9]*\.?[0-9]+$ ]]; }
 case $CLONE_CUT in auto|gap|replicates) [ -n "$TECHREPS" ] || stop "CLONE_CUT = $CLONE_CUT needs TECHREPS; set TECHREPS, or CLONE_CUT to a number" ;;
 *) num "$CLONE_CUT" || stop "CLONE_CUT = $CLONE_CUT: give auto, gap, replicates or a number" ;; esac
 num "$TREE_BUFFER" || stop "TREE_BUFFER = $TREE_BUFFER: give a number, e.g. 1.10"
+case ${KIN_DROP:-yes} in yes|no) ;; *) stop "KIN_DROP = $KIN_DROP: give yes or no" ;; esac
+[ "${KIN_DROP:-yes}" = no ] && echo "WARNING: KIN_DROP = no: related individuals stay in: SFS, theta, Tajima's D and FST will include close kin, which skews allele frequencies toward their families"
+[ -z "$HET_DEPTH" ] || [[ $HET_DEPTH =~ ^[0-9]*\.?[0-9]+$ ]] || stop "HET_DEPTH = $HET_DEPTH: leave it empty or give a mean depth, e.g. 5"
 case $THETA_N in ""|min) ;; *[!0-9]*) stop "THETA_N = $THETA_N: leave it empty, or give a whole number or min" ;; *) [ $THETA_N -ge 2 ] || stop "THETA_N must be at least 2" ;; esac
 for v in QDEPTH:$QDEPTH MIN_GROUP:$MIN_GROUP; do case ${v#*:} in ""|*[!0-9]*) stop "${v%%:*} = ${v#*:}: give a whole number" ;; esac; done
 python3 - "$META" "$META_SAMPLE" "$WD" $META_GROUPS <<'PY' || stop "metadata check failed"

@@ -44,7 +44,7 @@ CM=$(ls ${SP}CloneMetric.txt clones/${SP}CloneMetric.txt 2>/dev/null | head -1)
 if [ -n "$CM" ]; then
   met=$(awk '$1=="metric"{print $2}' $CM); conf=$(awk '$1=="confidence"{print $2}' $CM); cut=$(awk '$1=="cut"{print $2}' $CM)
   [ "$conf" != NA ] || conf=
-  cloneGroups.py -i ${SP}.ibsMat -g ${SP}.geno.gz -b ${SP}Bams --metric $met ${conf:+--conf $conf} --check $cut \
+  cloneGroups.py -i ${SP}.ibsMat -g ${SP}.geno.gz -b ${SP}Bams --metric $met ${conf:+--conf $conf} --check $cut --save-dist ${SP}.cloneDist \
     --quality ${SP}Quality${QDEPTH}X.txt --meta "$META" --meta-sample "$META_SAMPLE" --meta-groups $META_GROUPS ${PLOT_COLOR:+--color "$PLOT_COLOR"} ${PLOT_SHAPE:+--shape "$PLOT_SHAPE"} --levels "$PLOT_LEVELS" --colors "$PLOT_COLORS" --shapes "$PLOT_SHAPES" -o $SP \
     || note "WARNING: clone-free check failed; see above"
 fi

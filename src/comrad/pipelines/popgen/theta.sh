@@ -32,21 +32,24 @@ rm -rf ../theta/sub     # from an earlier run with THETA_N set
 fi
 
 cd "$WD/sfs"
+# every lineage (and subsample) on the same sites: those in all of their SAFs. A SAF keeps only sites with
+# reads in that lineage, so without this the lineages' site sets differ slightly
+SAFS=$(for POP in $POPS; do echo ${SP}${POP}SFS.saf.idx; [ -z "$NSUB" ] || echo ../theta/sub/${SP}${POP}Sub.saf.idx; done)
+commonsites ${SP}ThetaPos ../theta/${SP}ThetaSites $SAFS &&
+  rm -f ../theta/${SP}*.thetas.* ../theta/sub/*_theta.thetas.* ${SP}*.folded.sfs ../theta/sub/*.folded.sfs
+NT=$(wc -l <../theta/${SP}ThetaSites)
+[ $NT -gt 0 ] || stop "no site is in every lineage's SAF"
+note "theta: $NT sites in every lineage's SAF$([ -z "$NSUB" ] || echo " and every subsample's"); all theta from these"
+ST="-sites ../theta/${SP}ThetaSites"
 >${SP}Thetas
 for POP in $POPS; do
-job "test -s ../theta/${SP}${POP}.thetas.idx.pestPG" "realSFS ${SP}${POP}SFS.saf.idx -fold 1 -maxIter 1000 -P $CFG_theta_cpus >${SP}${POP}.folded.sfs && realSFS saf2theta ${SP}${POP}SFS.saf.idx -sfs ${SP}${POP}.folded.sfs -outname ../theta/${SP}${POP} -fold 1 && thetaStat do_stat ../theta/${SP}${POP}.thetas.idx" >>${SP}Thetas
+job "test -s ../theta/${SP}${POP}.thetas.idx.pestPG" "localSaf.py realSFS ${SP}${POP}SFS.saf.idx $ST -fold 1 -maxIter 1000 -P $CFG_theta_cpus >${SP}${POP}.folded.sfs && localSaf.py realSFS saf2theta ${SP}${POP}SFS.saf.idx $ST -sfs ${SP}${POP}.folded.sfs -outname ../theta/${SP}${POP} -fold 1 && localSaf.py thetaStat do_stat ../theta/${SP}${POP}.thetas.idx" >>${SP}Thetas
 [ -z "$NSUB" ] || { S=../theta/sub/${SP}${POP}Sub
-job "test -s ${S}_theta.thetas.idx.pestPG" "realSFS $S.saf.idx -fold 1 -maxIter 1000 -P $CFG_theta_cpus >$S.folded.sfs && realSFS saf2theta $S.saf.idx -sfs $S.folded.sfs -outname ${S}_theta -fold 1 && thetaStat do_stat ${S}_theta.thetas.idx" >>${SP}Thetas; }
+job "test -s ${S}_theta.thetas.idx.pestPG" "localSaf.py realSFS $S.saf.idx $ST -fold 1 -maxIter 1000 -P $CFG_theta_cpus >$S.folded.sfs && localSaf.py realSFS saf2theta $S.saf.idx $ST -sfs $S.folded.sfs -outname ${S}_theta -fold 1 && localSaf.py thetaStat do_stat ${S}_theta.thetas.idx" >>${SP}Thetas; }
 done
 comrad-jobs ${SP}Thetas -n ${SP}Thetas --res theta || stop "thetas failed"
 converged $(rtlogs ${SP}Thetas)
 cd "$WD"
-# pi, Watterson's theta, Tajima's D (Tajima 1989, n = 2 x individuals) and sites from the summed thetas
-tstat(){ awk -v n=$((2 * $2)) 'NR>1 {tW+=$4; tP+=$5; ns+=$NF}
-  END {for (i=1; i<n; i++) {a1+=1/i; a2+=1/(i*i)}
-       b1=(n+1)/(3*(n-1)); b2=2*(n*n+n+3)/(9*n*(n-1)); c1=b1-1/a1; c2=b2-(n+2)/(a1*n)+a2/(a1*a1)
-       e1=c1/a1; e2=c2/(a1*a1+a2); S=tW*a1
-       printf "%.6f\t%.6f\t%.4f\t%d", tP/ns, tW/ns, (tP-tW)/sqrt(e1*S+e2*S*(S-1)), ns}' "$1"; }
 { printf 'lineage\tn\tpi\tthetaW\ttajimaD\tnSites'
 [ -z "$NSUB" ] || printf '\tnSub\tpiSub\tthetaWSub\ttajimaDSub\tnSitesSub'
 printf '\n'
@@ -58,5 +61,7 @@ printf '\n'
 done
 } >theta/${SP}Theta.out
 cat theta/${SP}Theta.out
+awk -F'\t' 'NR == 1 {for (i = 1; i <= NF; i++) if ($i ~ /^nSites/) c[i]; next} {for (i in c) v[$i]} END {exit length(v) > 1}' theta/${SP}Theta.out ||
+  note "WARNING: theta site counts differ between lineages or subsamples (nSites columns above), though all used theta/${SP}ThetaSites"
 
 plots theta

@@ -17,15 +17,20 @@ KINDS = {
     "pools": "RawCounts.pdf (reads pipeline, project folder): raw and kept reads per pool",
     "symbionts": "bams/<SP>Symbionts.pdf: share of symbiont reads per genus, per sample",
     "pca": "pcangsd/<SP>Pca.pdf: PC1-2 and PC3-4 of the PCAngsd covariance, % variance on the axes",
-    "admix": "ngsAdmix/<SP>Admix.pdf: NGSadmix bars for K = 2..MAXK (best run, one sample order, colours matched "
-             "across K), and PCAngsd's own admixture at its K; evalAdmix residual RMSD and log-likelihood against K",
-    "kin": "relatedness/<SP>Kin.pdf: pairwise kinship (theta) from NGSremix, the KIN cut marked",
+    "admix": "ngsAdmix/<SP>Admix.pdf: the clone-free tree (the clone step's distance) with sampling-group tiles and "
+             "NGSadmix bars for K = 2..MAXK and PCAngsd's own K in the tree's leaf order; the same bars ordered by "
+             "sampling group (colours matched across K); evalAdmix residual RMSD, log-likelihood and k-means BIC against K",
+    "kin": "relatedness/<SP>Kin.pdf: pairwise kinship (theta) from NGSremix by pair type (within each lineage, "
+           "between lineages, with Admixed): histograms; boxplots of every pair and of each sample's closest relative; "
+           "the share of pairs at or above each kinship; counts per degree class. KIN and the KING degree bounds marked",
     "outliers": "angsd/lineages/<SP>Outliers.pdf: PCAngsd selection statistic along the genome per lineage "
                 "(outliers in red); within-lineage PCAs",
-    "neutral": "ngsAdmix/<SP>Neutral.pdf: neutral, kin-free bars next to the full run's at K; neutral PCA",
+    "neutral": "ngsAdmix/<SP>Neutral.pdf: neutral, kin-free bars next to the full run's at K; pcangsd/<SP>PcaCompare.pdf: "
+               "the PCA of all samples and the neutral, kin-free PCA, each coloured by sampling group and by lineage",
     "fst": "sfs/<SP>Fst.pdf: weighted FST between lineages (neutral and all sites) and between groups within lineages",
     "het": "het/<SP>Het.pdf: heterozygosity per sample by lineage and group; against coverage",
-    "theta": "theta/<SP>Theta.pdf: pi, Watterson's theta and Tajima's D per lineage (and the THETA_N subsample)",
+    "theta": "theta/<SP>Theta.pdf: pi, Watterson's theta and Tajima's D per lineage (and the THETA_N subsample); "
+             "per sampling group (all samples and the smallest group's n) when the groups step ran",
 }
 ap = argparse.ArgumentParser(
     description="Draws comRAD's quick-look plots for one step from the files that step wrote, as one PDF per step "
@@ -70,6 +75,8 @@ ap.add_argument("--levels", default="", help="level order per factor: 'bank: WFG
 ap.add_argument("--colors", default="", help="colours per level: 'bank: WFGB=1b9e77 EFGB=d95f02; lineage: Mc1=red' (hex without #, or names)")
 ap.add_argument("--shapes", default="", help="point shapes per level: 'depthZone: Shallow=o Meso=^' (matplotlib markers)")
 ap.add_argument("--kcolor", help="admixture bars: this colour for the first cluster, the rest lighter toward white in MAXK steps (hex without #, or a name)")
+ap.add_argument("--update", action="store_true", help="rewrite the newest version of the plot instead of adding _v<n> "
+                                                    "(for steps that add to a plot an earlier step of the same run drew)")
 ap.add_argument("--prefix", default="", help="admix: draw the run whose files start <SP><prefix> (Neutral: the kin-free, neutral K run, "
                                                "written to ngsAdmix/<SP>NeutralAdmix.pdf)")
 ap.add_argument("-k", type=int, help="admix: K that orders the samples (default 2); neutral: the chosen K")
@@ -111,6 +118,9 @@ meta = {}
 if a.meta and os.path.exists(a.meta):
     with open(a.meta, newline="", encoding="utf-8-sig") as fh:
         meta = {r.get(a.meta_sample, ""): r for r in csv.DictReader(fh)}
+_kd = P("relatedness", f"{SP}KinDrop")
+KINFREE = not os.path.exists(_kd) or os.path.getsize(_kd) > 0        # KIN_DROP = no or SKIP kin leave KinDrop empty
+KFT, KLO = ("kin-free", "kin left out") if KINFREE else ("kin kept", "kin kept")
 lineage = {}
 if SP and os.path.exists(P("angsd", f"{SP}BamsClusters")):
     lineage = {base(l): l.split()[1] for l in lines(P("angsd", f"{SP}BamsClusters")) if len(l.split()) > 1}
@@ -168,7 +178,9 @@ def group(s):
 
 def colours(f, vals):
     lv = lsort(f, vals)
-    d = COLORS.get(f, {})
+    d = dict(COLORS.get(f, {}))
+    if f == "lineage":
+        d.setdefault("Admixed", "#BBBBBB")
     free = iter(c for c in PAL if c not in d.values())
     return {v: d.get(v) or next(free, "grey") for v in lv}
 
@@ -207,7 +219,8 @@ def flush():
             stem, v = path[:-4], 2
             while os.path.exists(f"{stem}_v{v}.pdf"):
                 v += 1
-            path = f"{stem}_v{v}.pdf"
+            # --update: the same run adding to its plot (fst, then fstall, then groups) rewrites its latest version
+            path = (f"{stem}_v{v - 1}.pdf" if v > 2 else f"{stem}.pdf") if a.update else f"{stem}_v{v}.pdf"
         with PdfPages(path) as pdf:
             for fig in figs:
                 pdf.savefig(fig)
@@ -407,6 +420,89 @@ def best_q(k, pre=""):
     return qread(P("ngsAdmix", rows[0]["best"])) if rows else None
 
 
+def tree_dist(ids):
+    """the clone-free distance matrix the genotype step saved (genotype distance or 1 - IBS, as the clone step used),
+    else the genotype step's IBS matrix; rows in angsd/<SP>Bams order; None if neither covers these samples"""
+    allids = names(P("angsd", f"{SP}Bams"))
+    pos = {s: i for i, s in enumerate(allids)}
+    for f, lab in ((P("angsd", f"{SP}.cloneDist"), None), (P("angsd", f"{SP}.ibsMat"), "1 - IBS")):
+        if not os.path.exists(f) or any(s not in pos for s in ids):
+            continue
+        if lab is None:
+            lab = open(f).readline().lstrip("# ").strip()
+        D = np.loadtxt(f, ndmin=2, comments="#")
+        if D.shape != (len(allids), len(allids)):
+            continue
+        ix = [pos[s] for s in ids]
+        return D[np.ix_(ix, ix)], lab
+    return None, None
+
+
+def tree_admix(ids, rows, title, out):
+    """tree (UPGMA) on the left, sampling-group tiles, sample names, then one column of bars per K, every column in
+    the tree's leaf order"""
+    from scipy.cluster.hierarchy import dendrogram, linkage
+    from scipy.spatial.distance import squareform
+    D, lab = tree_dist(ids)
+    if D is None:
+        return
+    Z = linkage(squareform((D + D.T) / 2, checks=False), "average")
+    n = len(ids)
+    widths = [3.2, 0.45, 1.0] + [0.55] * len(rows)
+    fig = plt.figure(figsize=(sum(widths) + 0.6, max(6, 0.09 * n + 1.6)))
+    gs = fig.add_gridspec(1, len(widths), width_ratios=widths, wspace=0.05)
+    ax = fig.add_subplot(gs[0])
+    dn = dendrogram(Z, orientation="left", ax=ax, no_labels=True, color_threshold=0, above_threshold_color="black")
+    for c in ax.collections:
+        c.set_linewidth(0.5)
+    order = dn["leaves"]                                  # bottom to top, at y = 5, 15, ...
+    y = 5 + 10 * np.arange(n)
+    ax.set_ylim(0, 10 * n)
+    ax.set_xlabel(lab, fontsize=7)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.set_yticks([])
+    tl = fig.add_subplot(gs[1], sharey=ax)
+    cv = [mval(ids[i], CCOL) for i in order]
+    sv = [mval(ids[i], SCOL) for i in order]
+    cols, shapes = colours(CCOL, cv), markers(SCOL, sv)
+    tl.scatter(np.zeros(n), y, c=[cols[v] for v in cv], marker="s", s=14, linewidth=0)
+    for v in shapes:
+        m = np.array([x == v for x in sv])
+        tl.scatter(np.ones(m.sum()), y[m], marker=shapes[v], s=12, facecolor="grey", edgecolor="black", linewidth=.2)
+    tl.set_xlim(-.6, 1.6)
+    tl.set_xticks([0, 1])
+    tl.set_xticklabels([CCOL or "", SCOL or ""], rotation=90, fontsize=6)
+    tl.axis("on"); tl.set_yticks([])
+    for side in ("top", "right", "left", "bottom"):
+        tl.spines[side].set_visible(False)
+    nm = fig.add_subplot(gs[2], sharey=ax)
+    fs = max(2.5, min(6, 700 / max(n, 1)))
+    for yy, i in zip(y, order):
+        nm.text(0, yy, ids[i], va="center", ha="left", fontsize=fs)
+    nm.axis("off")
+    for k, (labk, Q) in enumerate(rows):
+        axk = fig.add_subplot(gs[3 + k], sharey=ax)
+        pal = kpal(Q.shape[1])
+        left = np.zeros(n)
+        for j in range(Q.shape[1]):
+            axk.barh(y, Q[order, j], left=left, height=10, color=pal[j], linewidth=0)
+            left += Q[order, j]
+        axk.set_xlim(0, 1)
+        axk.set_xticks([])
+        axk.set_yticks([])
+        axk.set_title(labk.replace("\n", " "), fontsize=6, rotation=90, va="bottom")
+        for side in ("top", "right", "left", "bottom"):
+            axk.spines[side].set_visible(False)
+    h = [Line2D([], [], marker="s", ls="", color=c, label=v) for v, c in cols.items()]
+    h += [Line2D([], [], marker=m, ls="", color="grey", label=v) for v, m in shapes.items()] if len(shapes) > 1 else []
+    if h:
+        fig.legend(handles=h, loc="lower center", ncol=min(len(h), 10), fontsize=6, frameon=False)
+    fig.suptitle(title, x=0.01, ha="left", fontsize=8)
+    fig.subplots_adjust(left=0.02, right=0.99, top=1 - 0.6 / fig.get_figheight(), bottom=0.9 / fig.get_figheight())
+    save(fig, out)
+
+
 def k_admix():
     pre = a.prefix
     ids = names(P("angsd", f"{SP}{pre}Bams"))
@@ -431,11 +527,13 @@ def k_admix():
         Qp = qread(pq[-1])
         if Qp.shape[0] == len(ids):
             rows.append((f"PCAngsd\nK = {kp}", align(Qp, Qs[kp]) if kp in Qs and kp > 1 else Qp))
+    tree_admix(ids, rows, f"{SP}{(': ' + KFT + ', neutral SNPs') if pre else ''}: tree and NGSadmix, best run per K",
+               P("ngsAdmix", f"{SP}{pre}Admix.pdf"))
     fig, axs = plt.subplots(len(rows), 1, figsize=(max(8, len(ids) * .07), 1 + .9 * len(rows)), sharex=True, squeeze=False)
     for i, (lab, Q) in enumerate(rows):
         bars(axs[i, 0], Q, order, ids, lab, i == len(rows) - 1)
     group_labels(axs[0, 0], order, ids)
-    axs[0, 0].set_title(f"{SP}{': kin-free, neutral SNPs' if pre else ''}: NGSadmix, best run per K; samples by {' x '.join(ORDER) or 'sample'}, "
+    axs[0, 0].set_title(f"{SP}{(': ' + KFT + ', neutral SNPs') if pre else ''}: NGSadmix, best run per K; samples by {' x '.join(ORDER) or 'sample'}, "
                         f"then main cluster at K = {ko}", loc="left", pad=14)
     fig.tight_layout()
     save(fig, P("ngsAdmix", f"{SP}{pre}Admix.pdf"))
@@ -474,17 +572,124 @@ def k_admix():
     save(fig, P("ngsAdmix", f"{SP}{pre}Admix.pdf"))
 
 
+DEGREES = [(0.354, "clone / self"), (0.177, "1st degree"), (0.0884, "2nd degree"), (0.0442, "3rd degree")]   # KING bounds
+
+
 def k_kin():
     rows = table(P("relatedness", f"{SP}Remix"))
     th = np.array([float(r["k1"]) / 4 + float(r["k2"]) / 2 for r in rows])
-    fig, ax = plt.subplots(figsize=(6, 3.5))
-    ax.hist(th, bins=60, color=PAL[0])
+    bams = names(P("angsd", f"{SP}Bams")) if os.path.exists(P("angsd", f"{SP}Bams")) else []
+    i1 = [int(r["ind1"]) for r in rows]
+    i2 = [int(r["ind2"]) for r in rows]
+    b0 = min(i1 + i2) if rows else 0
+    ok = bams and max(i1 + i2) - b0 == len(bams) - 1
+    pair = [(bams[x - b0], bams[y - b0]) for x, y in zip(i1, i2)] if ok else []
+    L = lsort("lineage", set(lineage.values()) - {"Admixed"})
+    lc = colours("lineage", set(lineage.values()) | {"Admixed"})
+
+    def ptype(x, y):
+        u, v = lineage.get(x), lineage.get(y)
+        if not (u and v):
+            return "all pairs"
+        if "Admixed" in (u, v):
+            return "with Admixed"
+        return f"within {u}" if u == v else "between lineages"
+    typ = [ptype(x, y) for x, y in pair] if pair else ["all pairs"] * len(th)
+    T = [t for t in [f"within {l}" for l in L] + ["between lineages", "with Admixed", "all pairs"] if t in typ]
+    tcol = {t: lc.get(t[7:], "#555555") if t.startswith("within ") else ("#555555" if t == "between lineages" else "#BBBBBB")
+            for t in T}
+    by = {t: th[[k for k, x in enumerate(typ) if x == t]] for t in T}
+
+    def marks(ax, vertical=True):
+        for b, _ in DEGREES:
+            (ax.axvline if vertical else ax.axhline)(b, color="grey", ls=":", lw=.7)
+        (ax.axvline if vertical else ax.axhline)(a.kin, color="red", ls="--", lw=.8)
+    note = (f"{len(th)} pairs; {int((th >= a.kin).sum())} at or above KIN = {a.kin:g} (red); "
+            f"grey dotted: 3rd, 2nd, 1st degree, clone (KING bounds)")
+
+    # page 1: histograms by pair type
+    top = max(.5, th.max() if len(th) else .5)
+    bins = np.linspace(min(0, th.min() if len(th) else 0), top, 51)
+    fig, axs = plt.subplots(len(T), 1, figsize=(7, 1.5 * len(T) + 1), sharex=True, squeeze=False)
+    for ax, t in zip(axs[:, 0], T):
+        ax.hist(by[t], bins=bins, color=tcol[t])
+        ax.set_yscale("log")
+        marks(ax)
+        ax.set_ylabel("pairs", fontsize=7)
+        ax.set_title(f"{t}: {len(by[t])} pairs, {int((by[t] >= a.kin).sum())} at or above KIN", loc="left", fontsize=8)
+    axs[-1, 0].set_xlabel("kinship (theta = k1/4 + k2/2)")
+    fig.suptitle(f"{SP}: NGSremix kinship by pair type; {note}", x=.01, ha="left", fontsize=7)
+    fig.tight_layout()
+    save(fig, P("relatedness", f"{SP}Kin.pdf"))
+
+    # page 2: pairs by type; each sample's closest relative by lineage
+    rng = np.random.default_rng(1)
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.2))
+    ax = axs[0]
+    ax.boxplot([by[t] for t in T], positions=range(len(T)), widths=.5, showfliers=False, medianprops={"color": "black"})
+    for k, t in enumerate(T):
+        ax.scatter(k + rng.uniform(-.2, .2, len(by[t])), by[t], s=5, color=tcol[t], alpha=.6, linewidth=0)
+    marks(ax, False)
+    ax.set_xticks(range(len(T)))
+    ax.set_xticklabels(T, rotation=30, ha="right", fontsize=7)
+    ax.set_ylabel("kinship (theta)")
+    ax.set_title("every pair, by pair type", loc="left", fontsize=8)
+    ax = axs[1]
+    if pair:
+        best = {}
+        for (x, y), v in zip(pair, th):
+            best[x] = max(best.get(x, -1), v)
+            best[y] = max(best.get(y, -1), v)
+        G = [g for g in L + ["Admixed"] if any(lineage.get(s) == g for s in best)] or ["all"]
+        vals = [[v for s, v in best.items() if lineage.get(s, "all") == g] for g in G]
+        ax.boxplot(vals, positions=range(len(G)), widths=.5, showfliers=False, medianprops={"color": "black"})
+        for k, (g, v) in enumerate(zip(G, vals)):
+            ax.scatter(k + rng.uniform(-.2, .2, len(v)), v, s=10, color=lc.get(g, PAL[0]), alpha=.8, linewidth=0)
+        marks(ax, False)
+        ax.set_xticks(range(len(G)))
+        ax.set_xticklabels([f"{g}\n(n = {len(v)})" for g, v in zip(G, vals)], fontsize=7)
+        ax.set_ylabel("highest kinship to any other sample")
+        ax.set_title("each sample's closest relative, by its lineage", loc="left", fontsize=8)
+    else:
+        ax.axis("off")
+    fig.suptitle(f"{SP}: kinship; {note}", x=.01, ha="left", fontsize=7)
+    fig.tight_layout()
+    save(fig, P("relatedness", f"{SP}Kin.pdf"))
+
+    # page 3: share of pairs at or above each theta
+    fig, ax = plt.subplots(figsize=(7, 4))
+    x = np.linspace(0, top, 200)
+    for t in T:
+        v = by[t]
+        if len(v):
+            y = np.array([(v >= z).mean() for z in x])
+            ax.step(x[y > 0], y[y > 0], where="post", color=tcol[t], label=f"{t} ({len(v)})")
     ax.set_yscale("log")
-    ax.axvline(a.kin, color="red", ls="--", lw=.8)
-    ax.set_xlabel("kinship (theta = k1/4 + k2/2)")
-    ax.set_ylabel("pairs (log scale)")
-    ax.set_title(f"{SP}: NGSremix kinship, {len(th)} pairs; {int((th >= a.kin).sum())} at or above KIN = {a.kin:g} (red)",
-                 loc="left")
+    marks(ax)
+    ax.set_xlabel("kinship (theta)")
+    ax.set_ylabel("share of pairs at or above")
+    ax.legend(fontsize=7, frameon=False)
+    ax.set_title(f"{SP}: share of pairs at or above each kinship, by pair type", loc="left", fontsize=8)
+    fig.tight_layout()
+    save(fig, P("relatedness", f"{SP}Kin.pdf"))
+
+    # page 4: counts per degree class
+    edges = [-np.inf] + [b for b, _ in DEGREES[::-1]] + [np.inf]
+    cls = ["unrelated"] + [n for _, n in DEGREES[::-1]]
+    cells = []
+    for t in T:
+        v = by[t]
+        cnt = [int(((v >= lo) & (v < hi)).sum()) for lo, hi in zip(edges[:-1], edges[1:])]
+        cells.append([str(len(v))] + [f"{c} ({100 * c / max(len(v), 1):.0f}%)" for c in cnt] + [str(int((v >= a.kin).sum()))])
+    fig, ax = plt.subplots(figsize=(10, .4 * len(T) + 1.2))
+    ax.axis("off")
+    tb = ax.table(cellText=cells, rowLabels=T, colLabels=["pairs"] + [f"{c}" for c in cls] + [f">= KIN {a.kin:g}"],
+                  loc="center", cellLoc="center")
+    tb.auto_set_font_size(False)
+    tb.set_fontsize(7)
+    tb.scale(1, 1.3)
+    ax.set_title(f"{SP}: pairs per kinship class (KING bounds 0.0442, 0.0884, 0.177, 0.354), by pair type",
+                 loc="left", fontsize=8)
     fig.tight_layout()
     save(fig, P("relatedness", f"{SP}Kin.pdf"))
 
@@ -548,17 +753,26 @@ def k_neutral():
     order = sample_order(nb, Qf)
     fig, axs = plt.subplots(2, 1, figsize=(max(8, len(nb) * .07), 3), sharex=True)
     bars(axs[0], Qf, order, nb, "all SNPs", False)
-    bars(axs[1], Qn, order, nb, "neutral,\nkin-free", True)
+    bars(axs[1], Qn, order, nb, f"neutral,\n{KFT}", True)
     group_labels(axs[0], order, nb)
-    axs[0].set_title(f"{SP}: K = {k}, the same {len(nb)} samples (kin left out), colours matched", loc="left", pad=14)
+    axs[0].set_title(f"{SP}: K = {k}, the same {len(nb)} samples ({KLO}), colours matched", loc="left", pad=14)
     fig.tight_layout()
     save(fig, P("ngsAdmix", f"{SP}Neutral.pdf"))
-    if os.path.exists(P("pcangsd", f"{SP}NeutralPcangsd.cov")):
-        fig, axs = plt.subplots(1, 2, figsize=(10, 4.2))
-        pca_axes(axs, P("pcangsd", f"{SP}NeutralPcangsd.cov"), nb, f"{SP}: PCA, neutral, kin-free; coloured by lineage",
-                 "lineage", SCOL or CCOL)
-        fig.tight_layout()
-        save(fig, P("ngsAdmix", f"{SP}Neutral.pdf"))
+    # the PCA before and after: all samples (structure step) and neutral, kin-free; each by sampling group and by lineage
+    out = P("pcangsd", f"{SP}PcaCompare.pdf")
+    keep = P("pcangsd", f"{SP}Pcangsd.keep")
+    allids = lines(keep) if os.path.exists(keep) else names(P("angsd", f"{SP}Bams"))
+    runs = [(P("pcangsd", f"{SP}Pcangsd.cov"), allids, "all samples, all unlinked SNPs"),
+            (P("pcangsd", f"{SP}NeutralPcangsd.cov"), nb, f"{KLO}, outlier loci left out")]
+    for cov, who, lab in runs:
+        if not os.path.exists(cov):
+            continue
+        for ccol, scol, by in ((CCOL, SCOL, " / ".join(c for c in (CCOL, SCOL) if c) or "sample"),
+                               ("lineage", SCOL or CCOL, "lineage")):
+            fig, axs = plt.subplots(1, 2, figsize=(10, 4.2))
+            pca_axes(axs, cov, who, f"{SP}: PCA, {lab} ({len(who)}); coloured by {by}", ccol, scol)
+            fig.tight_layout()
+            save(fig, out)
 
 
 def heat(ax, labs, val, title, vmax):
@@ -574,7 +788,7 @@ def heat(ax, labs, val, title, vmax):
     ax.set_yticklabels(labs, fontsize=6)
     for (i, j), v in np.ndenumerate(M):
         if v == v:
-            ax.text(j, i, f"{v:.3f}", ha="center", va="center", fontsize=5)
+            ax.text(j, i, f"{v:.3f}", ha="center", va="center", fontsize=5, color="white" if v > .6 * vmax else "black")
     ax.set_title(title, loc="left", fontsize=7)
     return im
 
@@ -599,7 +813,7 @@ def k_fst():
     vmax = max(max(v.values()) for _, _, v in sets) or 1
     nc = min(3, len(sets))
     nr = -(-len(sets) // nc)
-    fig, axs = plt.subplots(nr, nc, figsize=(3.6 * nc + 1, 3.4 * nr), squeeze=False)
+    fig, axs = plt.subplots(nr, nc, figsize=(3.6 * nc + 1, 3.4 * nr), squeeze=False, layout="constrained")
     im = None
     for ax, (lab, labs, v) in zip(axs.flat, sets):
         im = heat(ax, labs, v, lab, vmax)
@@ -645,7 +859,14 @@ def k_het():
         axs[2].set_xlabel(f"proportion of sites at >= {a.qdepth}x")
         axs[2].set_ylabel("heterozygosity")
         axs[2].legend(fontsize=6, frameon=False)
-        axs[2].set_title("against coverage", loc="left")
+        t = "against coverage"
+        hd = P("het", f"{SP}HetDepth.txt")
+        if os.path.exists(hd):
+            r = [x for x in table(hd) if x.get("against", "").startswith("propSites") and x.get("R2", "NA") != "NA"]
+            if r:
+                t += (f"\nSpearman rho = {float(r[0]['rho']):.2f}, p = {float(r[0]['p']):.3g}"
+                      f"\nlinear R\u00b2 = {float(r[0]['R2']):.2f}, n = {r[0]['n']}")
+        axs[2].set_title(t, loc="left", fontsize=8)
     fig.tight_layout()
     save(fig, P("het", f"{SP}Het.pdf"))
 
@@ -669,9 +890,36 @@ def k_theta():
         if col == "tajimaD":
             ax.axhline(0, color="black", lw=.5)
     axs[-1].legend(fontsize=6, frameon=False)
-    fig.suptitle(f"{SP}: diversity per lineage", x=.01, ha="left", fontsize=8)
+    fig.suptitle(f"{SP}: diversity per lineage, every lineage on the same sites", x=.01, ha="left", fontsize=8)
     fig.tight_layout()
     save(fig, P("theta", f"{SP}Theta.pdf"))
+    g = P("angsd", "groups", f"{SP}GroupTheta.out")
+    if not os.path.exists(g):
+        return
+    rows = sorted(table(g), key=lambda r: (rank("lineage", r["lineage"]), group_rank(r["group"])))
+    if not rows:
+        return
+    fig, axs = plt.subplots(1, 3, figsize=(max(11, .5 * len(rows) + 4), 3.8))
+    x = np.arange(len(rows))
+    w = .38
+    for ax, (col, lab) in zip(axs, (("pi", "pi (per site)"), ("thetaW", "Watterson's theta (per site)"), ("tajimaD", "Tajima's D"))):
+        ax.bar(x - w / 2, [float(r[col]) for r in rows], width=w, color=PAL[0], label="all samples in the group")
+        ax.bar(x + w / 2, [float(r[col + "Sub"]) for r in rows], width=w, color=PAL[1], label=f"{rows[0]['nSub']} per group")
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"{r['lineage']} {r['group']}\n(n = {r['n']})" for r in rows], rotation=90, fontsize=6)
+        ax.set_title(lab, loc="left")
+        if col == "tajimaD":
+            ax.axhline(0, color="black", lw=.5)
+    axs[-1].legend(fontsize=6, frameon=False)
+    fig.suptitle(f"{SP}: diversity per sampling group, every group on the same sites", x=.01, ha="left", fontsize=8)
+    fig.tight_layout()
+    save(fig, P("theta", f"{SP}Theta.pdf"))
+
+
+def group_rank(gname):
+    """sort key of a group name built from META_GROUPS levels joined by '_' (PLOT_LEVELS order where it can tell)"""
+    parts = gname.split("_")
+    return tuple(rank(f, v) for f, v in zip(ORDER, parts)) if len(parts) == len(ORDER) else ((0, gname),)
 
 
 globals()["k_" + a.kind]()

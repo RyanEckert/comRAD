@@ -101,7 +101,12 @@ makes it; the depth step remakes the bam lists if `angsd/` is gone.
   If it runs out, `comrad run popgen` picks up at the step it was in.
 - **`sacct did not answer`** in the job notes: peak memory is not recorded, nothing else is
   affected.
-- **bgzf errors from ANGSD** on parallel file systems: the genotype step copies the bams to
-  node-local disk first and stops with the number of errors if any remain; rerun the step.
+- **bgzf errors from ANGSD or realSFS** on parallel file systems (BeeGFS), e.g.
+  `Failed to read BGZF header` then `safreader.cpp ... Assertion failed` (exit 134), on files
+  that pass `gzip -t`. The genotype step copies the bams to node-local disk first. Every realSFS
+  and thetaStat call goes through `localSaf.py`, which fails (exit 75, so the job is retried) on
+  any bgzf message instead of keeping a partial result. If the errors persist, set
+  `local_copy = yes` in `cluster.config`: realSFS and thetaStat then read copies of their SAF,
+  theta and FST files on node-local disk (`$TMPDIR`), which needs space for the largest SAF.
 - **Moving a species folder** while its driver runs breaks the run (paths are absolute); move it
   between runs.

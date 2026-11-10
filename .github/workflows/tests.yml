@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install comRAD
+        run: python -m pip install .
+      - name: Scripts listed, installed and executable
+        run: bash tests/check_scripts.sh
+      - name: Clone calls on simulated pedigrees
+        run: bash tests/sim_clones.sh
+      - name: Mock run (reads -> popgen -> demography)
+        run: bash tests/run_mock.sh
+      - name: Mock run, host only
+        run: MOCK_HOSTONLY=1 bash tests/run_mock.sh
+      - name: Mock run, K = 1
+        run: MOCK_K=1 bash tests/run_mock.sh
+      - name: Generated docs are up to date
+        run: python tools/makeDocs.py --check

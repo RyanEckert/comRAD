@@ -55,7 +55,14 @@ tools(){ local t m=""; for t in "$@"; do command -v "$t" >/dev/null 2>&1 || m="$
 
 # fststats FST.IDX: "unweighted<TAB>weighted" from realSFS fst stats; fails unless both are numbers
 fststats(){
-  local v; v=$(realSFS fst stats "$1" 2>/dev/null | tail -1 | tr -s ' \t' '\t' | sed 's/^\t//')
+  local v; v=$(localSaf.py realSFS fst stats "$1" 2>/dev/null | tail -1 | tr -s ' \t' '\t' | sed 's/^\t//')
   [[ $v =~ ^-?[0-9.eE+-]+$'\t'-?[0-9.eE+-]+$ ]] || { echo "realSFS fst stats $1 gave '$v'" >&2; return 1; }
   echo "$v"
+}
+# sitesindex FILE: angsd sites index, with FILE dated two minutes back first. angsd refuses an index
+# older than its sites file (and exits 0 without output); on network file systems a file just written
+# can carry a later time than the index made right after it
+sitesindex(){
+  touch -d '2 minutes ago' "$1" && rm -f "$1.bin" "$1.idx" && angsd sites index "$1" 2>/dev/null &&
+    [ -s "$1.bin" ] && [ -s "$1.idx" ] || stop "angsd sites index $1 failed"
 }
