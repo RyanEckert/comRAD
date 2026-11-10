@@ -1,0 +1,5 @@
+download    # BaseSpace -> RAW (skipped if BS_PROJECTS is empty)
+demux       # trim2bRAD.py: find the tag, deduplicate, demultiplex -> <pool>_<barcode>.demux.fastq.gz
+demuxcheck  # per-pool yield table (RawCounts); stop if a pool kept too little
+rename      # sampleRename.py from SAMPLE_SHEET -> <sample>.demux.fastq.gz
+species     # move each species' reads into <species>/demuxReads

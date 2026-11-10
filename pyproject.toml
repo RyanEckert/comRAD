@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "comrad"
+version = "0.1.0"
+description = "comRAD: your companion for low-coverage RADseq population genomics (SLURM pipelines: reads, popgen, demography)"
+authors = [{name = "Ryan J Eckert", email = "ryan.j.eckert@gmail.com"}]
+requires-python = ">=3.9"
+license = {text = "GPL-3.0-or-later"}
+dependencies = ["numpy", "scipy", "matplotlib", "moments-popgen", "demes", "pcangsd", "cutadapt"]
+
+[project.scripts]
+"comrad" = "comrad.cli:main"
+"comrad-jobs" = "comrad.jobs:main"
+# the old names, so runs and notes from before the rename keep working
+"radpipe.py" = "comrad.cli:main"
+"rtjobs.py" = "comrad.jobs:main"
+
+[tool.setuptools]
+script-files = [
+  "scripts/trim2bRAD.py",
+  "scripts/sampleRename.py",
+  "scripts/fetchReads.py",
+  "scripts/readCounts.py",
+  "scripts/bowtie2Launcher.py",
+  "scripts/splitHostSym.py",
+  "scripts/packMetagenome.py",
+  "scripts/plotQC.py",
+  "scripts/filterBams.py",
+  "scripts/paralogFilter.py",
+  "scripts/pruneSnps.py",
+  "scripts/pcangsdFisToText.py",
+  "scripts/ngsAdmixLauncher.py",
+  "scripts/pickQ.py",
+  "scripts/pcangsdOutliers.py",
+  "scripts/subsetBeagle.py",
+  "scripts/momentsModels.py",
+  "scripts/zipper.py",
+  "scripts/mind",
+  "scripts/cloneGroups.py",
+  "scripts/admixResiduals.py",
+  "scripts/cloneTestRun.py",
+  "scripts/cloneTestScore.py",
+  "scripts/simCloneKin.py",
+  "scripts/plotStep.py",
+  "scripts/kmeansBic.py",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+comrad = ["pipelines/*.sh", "pipelines/*.config", "pipelines/*/*"]

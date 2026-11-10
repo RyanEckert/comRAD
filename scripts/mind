@@ -1,0 +1,5 @@
+#!/bin/bash
+# mind <bamlist> [proportion]  -- prints ceiling(nlines * proportion)
+[ $# -lt 1 ] && { echo "usage: mind <bamlist> [proportion, default 0.75]" >&2; exit 1; }
+[ -f "$1" ] || { echo "mind: no such file: $1" >&2; exit 1; }
+echo "x = $(grep -c . "$1") * ${2:-0.75}; scale = 0; t = x / 1; if (x > t) t = t + 1; t" | bc

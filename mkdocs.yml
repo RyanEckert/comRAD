@@ -1,0 +1,87 @@
+site_name: comRAD
+site_description: Your companion for low-coverage RADseq population genomics
+site_author: Ryan J. Eckert
+site_url: https://ryaneckert.github.io/comRAD/
+repo_url: https://github.com/RyanEckert/comRAD
+repo_name: RyanEckert/comRAD
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Ryan J. Eckert. GPL-3.0-or-later.
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Quick start: quickstart.md
+  - Tutorial: tutorial.md
+  - Guide:
+      - Before you start: guide/setup.md
+      - Reads: guide/reads.md
+      - Popgen: guide/popgen.md
+      - Clones and K: guide/decisions.md
+      - Results, plots and the report: guide/results.md
+      - Demography: guide/demography.md
+      - Running and rerunning: guide/running.md
+  - Worked examples:
+      - examples/index.md
+      - "Clones in a highly heterozygous coral": examples/clones-past.md
+      - "Clone calls on a simulated pedigree": examples/clone-simulation.md
+  - Reference:
+      - Settings: reference/settings.md
+      - Commands: reference/commands.md
+      - Scripts: reference/scripts.md
+  - Troubleshooting: troubleshooting.md
+  - About: about.md
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn

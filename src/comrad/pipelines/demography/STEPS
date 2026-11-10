@@ -1,0 +1,6 @@
+setup        # sample sizes per lineage, models, mu
+boot         # contig-bootstrap 2D spectra, split into seeded jobs
+bootjoin     # join the replicates per pair
+moments      # every model x seed, one job each
+collect      # best seed per model, model table, convergence and nesting checks
+tarball      # results for the R side

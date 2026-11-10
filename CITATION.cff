@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use comRAD, please cite it as below, and cite the tools it runs (ANGSD, PCAngsd, NGSadmix, evalAdmix, NGSremix, ngsParalog, bowtie2, samtools, cutadapt, moments, treeTrimmer)."
+title: "comRAD: your companion for low-coverage RADseq population genomics"
+type: software
+authors:
+  - family-names: Eckert
+    given-names: Ryan J.
+    affiliation: "Harbor Branch Oceanographic Institute, Florida Atlantic University"
+version: 0.1.0
+date-released: 2026-11-05
+license: GPL-3.0-or-later
+repository-code: "https://github.com/RyanEckert/comRAD"
+keywords:
+  - RADseq
+  - 2bRAD
+  - population genomics
+  - genotype likelihoods
+  - corals
+  - holobiont
+  - SLURM

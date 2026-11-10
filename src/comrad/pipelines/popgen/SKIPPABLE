@@ -1,0 +1,11 @@
+# steps SKIP may name, how serious leaving each out is (note / warn), and what changes.
+# Every other step is needed by a later one and cannot be skipped.
+het	note	no per-individual heterozygosity
+theta	note	no pi, Watterson's theta or Tajima's D
+groups	note	no FST among sampling groups
+fstall	note	no full-panel FST (outliers in) to compare with the neutral FST
+symbionts	note	no reads-per-symbiont-genus table
+neutral	warn	lineage calls are not re-checked without outliers and kin
+kin	warn	related individuals stay in: SFS, theta, Tajima's D and FST will include close kin, which skews allele frequencies toward their families
+outliers	warn	SNPs under selection stay in the SFS and FST: demography assumes neutral sites, and lineage FST can be inflated; fstall is skipped as well (it compares outliers in vs out)
+fst	warn	no lineage FST, fstall is skipped as well, and the demography pipeline cannot run (it fits the 2D spectra fst makes)

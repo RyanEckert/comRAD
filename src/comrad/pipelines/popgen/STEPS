@@ -1,0 +1,30 @@
+cutadapt     # quality filter demuxReads/*.demux.fastq.gz
+readcounts   # read totals; .filtered.fastq.gz to filteredReads
+map          # bowtie2 to host (and symbiont): filteredReads/<s>.host.bam, <s>.symbiont.bam
+alignrates   # alignment-rate tables
+split        # host/symbiont partition (or sort, host only): bams/<s>.bam, <s>.sym.bam
+clean        # drop the raw mapping bams; bamlists
+depth        # ANGSD depth/quality pass, plotQC
+clones       # IBS for clones and technical replicates
+clonegroups  # tree_trimmer threshold, clone groups, dendrogram
+filterbams   # one per clone group; drop low coverage
+paralog      # ngsParalog; keep-list of sites
+genotype     # genotype likelihoods, all samples; depth at SNPs
+structure    # unlinked SNPs, PCAngsd PCA and F_IS
+admix        # NGSadmix K = 1..MAXK, evalAdmix, fit
+symbionts    # reads per symbiont genus (skipped if host only)
+K            # pause: choose K
+assign       # lineages from the K run
+kin          # NGSremix; drop kin
+lineagebams  # pure individuals per lineage, kin left out
+lineagesnps  # SNPs within each lineage; selection scan
+outliers     # outliers per lineage; within-lineage PCA
+neutral      # structure rerun without outliers or kin: K = 1..MAXK again; compare lineage calls
+sfssites     # sites that pass the filters in every lineage, outlier tags removed
+saf          # site allele frequencies per lineage
+fst          # 2D SFS and FST between lineages
+fstall       # FST on the full panel (outliers in)
+groups       # FST among sampling groups within lineages
+het          # per-individual heterozygosity
+theta        # pi, Watterson's theta, Tajima's D per lineage
+tarball      # results for the R side

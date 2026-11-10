@@ -1,0 +1,27 @@
+# scripts comRAD installs, one per line; installed onto PATH under these exact names
+trim2bRAD.py
+sampleRename.py
+fetchReads.py
+readCounts.py
+bowtie2Launcher.py
+splitHostSym.py
+packMetagenome.py
+plotQC.py
+filterBams.py
+paralogFilter.py
+pruneSnps.py
+pcangsdFisToText.py
+ngsAdmixLauncher.py
+pickQ.py
+pcangsdOutliers.py
+subsetBeagle.py
+momentsModels.py
+zipper.py
+mind
+cloneGroups.py
+admixResiduals.py
+cloneTestRun.py
+cloneTestScore.py
+simCloneKin.py
+plotStep.py
+kmeansBic.py
