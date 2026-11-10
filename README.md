@@ -23,10 +23,16 @@ only.
 Low-coverage RADseq analyses are long chains of tools (ANGSD, PCAngsd, NGSadmix, evalAdmix,
 NGSremix, realSFS, moments) joined by many small decisions: filters, thresholds, sample lists,
 what to drop and why. Done by hand, those decisions end up scattered across notebooks and job
-scripts. ```comRAD``` puts them in one config file per analysis, runs the chain the same way every
-time, and records what it did.
+scripts, and the analysis takes far longer in wall-clock time than in compute, because every step
+waits on someone to notice the last one finished, check it, fix what failed and submit the next.
+comRAD puts the decisions in one config file per analysis, runs the chain the same way every time,
+moves from step to step and resubmits failed jobs on its own, and records what it did.
 
-- **Genotype likelihoods throughout**, so low depth per sample is handled rather than filtered away.
+- **Built on ANGSD, with genotype likelihoods throughout**, so low depth is generally handled
+  rather than filtered away.
+- **Every filter is yours to set.** Read and mapping quality, missing data, site tests, sample
+  coverage, clone and kin cut-offs: each is a setting in the config with a suggested starting value,
+  so you tune it to your species and coverage instead of editing scripts.
 - **Clones called from genotype distance** when coverage allows, IBS when it doesn't, with the cut
   set by your technical replicates. It separates clones from close relatives even in highly
   heterozygous species.
